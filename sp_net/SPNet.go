@@ -136,15 +136,15 @@ func (f SPNet) ReadBlock1(path string) ([][]byte, error) {
 	file, _ := os.Open(path)
 	defer file.Close()
 	stats, _ := file.Stat()
-	count := stats.Size()  / 256
+	count := stats.Size() / 256
 	blocks := make([][]byte, count)
-	for i := 0; i < int(count); i+=2 {
+	for i := 0; i < int(count); i += 2 {
 		s1 := make([]byte, 256)
 		s2 := make([]byte, 256)
 		file.Read(s1)
 		file.Read(s2)
 		blocks[i] = s1
-		blocks[i + 1] = s2
+		blocks[i+1] = s2
 	}
 
 	return blocks, nil
@@ -171,8 +171,7 @@ func avg(byte []byte) float64 {
 	return avg / float64(len(byte))
 }
 
-func (f SPNet) AutoCorrelation(bytes []byte) []float64 {
-	const size = 5
+func (f SPNet) AutoCorrelation(bytes []byte, size int) []float64 {
 	result := make([]float64, size)
 	for i := 0; i < size; i++ {
 		a := bytes[i:]
@@ -187,7 +186,8 @@ func (f SPNet) Correlation(a, b []byte) float64 {
 	bottom := 0.
 	avgA := avg(a)
 	avgB := avg(b)
-	for i, _ := range b {
+	l := math.Min(float64(len(a)), float64(len(b)))
+	for i := 0; i < int(l); i++ {
 		top += (float64(a[i]) - avgA) * (float64(b[i]) - avgB)
 		bottom += math.Sqrt(math.Pow(float64(a[i])-avgA, 2) * math.Pow(float64(b[i])-avgB, 2))
 	}

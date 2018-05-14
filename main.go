@@ -26,6 +26,7 @@ const (
 	generateKey     = "g"
 	test            = "t"
 	generateSblocks = "b"
+	correlation     = "c"
 )
 
 const (
@@ -122,5 +123,22 @@ func main() {
 	} else if opts.Mode == generateSblocks {
 		s := sp_net.SPNet{}
 		s.GenerateBlock(opts.OutFile, opts.Count)
+	} else if opts.Mode == correlation {
+		s := sp_net.SPNet{}
+		r := b.Reader{}
+		_, data1, _ := r.ReadBmp(opts.File)
+		_, data2, _ := r.ReadBmp(opts.OutFile)
+		len := opts.Len
+		fmt.Println("corelation f1 -> f2 ", s.Correlation(data1, data2))
+		fmt.Print("######################\n")
+		autoCor1 := s.AutoCorrelation(data1, len)
+		autoCor2 := s.AutoCorrelation(data2, len)
+		for i := 0; i < len; i++ {
+			fmt.Printf("autocorelation %s Δx = %d | %.5f\n", opts.File, i, autoCor1[i])
+		}
+		fmt.Print("######################\n")
+		for i := 0; i < len; i++ {
+			fmt.Printf("autocorelation %s Δx = %d | = %.5f\n", opts.OutFile, i, autoCor2[i])
+		}
 	}
 }
