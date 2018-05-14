@@ -4,7 +4,6 @@ import (
 	"os"
 	"math/rand"
 	"math"
-	"encoding/binary"
 	"time"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot"
@@ -109,19 +108,18 @@ func (f SPNet) decryptByte(block byte, s [][]byte, rounds int) (byte) {
 	return res
 }
 
-func (f SPNet) GenerateBlock(path string, size int) {
+func (f SPNet) GenerateBlock(path string, count int) {
 	file, _ := os.Create(path)
 	defer file.Close()
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	if size == 1 {
-		s := int(math.Pow(float64(2), float64(size*8)))
-		blocks := make([]uint8, s)
-		blocks2 := make([]uint8, s)
+	s := int(math.Pow(float64(2), float64(8)))
+	blocks := make([]uint8, s)
+	blocks2 := make([]uint8, s)
+	for c := 0; c < count; c++ {
 		p := rand.Perm(s)
 		p2 := rand.Perm(s)
-
 		for i := 0; i < s; i++ {
 			blocks[i] = uint8(p[i])
 		}
@@ -131,46 +129,25 @@ func (f SPNet) GenerateBlock(path string, size int) {
 		}
 		file.Write(blocks)
 		file.Write(blocks2)
-	} else if size == 2 {
-		s := int(math.Pow(float64(2), float64(size*8)))
-		blocks := make([]uint16, s)
-		blocks2 := make([]uint16, s)
-		p := rand.Perm(s)
-		p2 := rand.Perm(s)
-
-		for i := 0; i < s; i++ {
-			blocks[i] = uint16(p[i])
-			blocks2[i] = uint16(p2[i])
-		}
-		binary.Write(file, binary.LittleEndian, blocks)
-		binary.Write(file, binary.LittleEndian, blocks2)
-	} else if size == 3 {
-		s := int(math.Pow(float64(2), float64(size*8)))
-		blocks := make([]uint32, s)
-		blocks2 := make([]uint32, s)
-		p := rand.Perm(s)
-		p2 := rand.Perm(s)
-
-		for i := 0; i < s; i++ {
-			blocks[i] = uint32(p[i])
-			blocks2[i] = uint32(p2[i])
-		}
-		binary.Write(file, binary.LittleEndian, blocks)
-		binary.Write(file, binary.LittleEndian, blocks2)
 	}
 }
 
-func (f SPNet) ReadBlock1(path string) ([]uint8, []uint8, error) {
+func (f SPNet) ReadBlock1(path string) ([][]byte, error) {
 	file, _ := os.Open(path)
 	defer file.Close()
+	stats, _ := file.Stat()
+	count := stats.Size()  / 256
+	blocks := make([][]byte, count)
+	for i := 0; i < int(count); i+=2 {
+		s1 := make([]byte, 256)
+		s2 := make([]byte, 256)
+		file.Read(s1)
+		file.Read(s2)
+		blocks[i] = s1
+		blocks[i + 1] = s2
+	}
 
-	s := int(math.Pow(2, 8))
-
-	buffer := make([]uint8, s)
-	buffer2 := make([]uint8, s)
-	file.Read(buffer)
-	file.Read(buffer2)
-	return buffer, buffer2, nil
+	return blocks, nil
 }
 
 func find(byte []byte, val byte) (int) {

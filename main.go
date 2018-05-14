@@ -10,19 +10,22 @@ import (
 )
 
 var opts struct {
-	KeyPath string `long:"key" short:"k"`
-	Mode    string `long:"mode" short:"m"`
-	File    string `long:"file" short:"f"`
-	OutFile string `long:"out" short:"o"`
-	Len     int    `long:"len" short:"l"`
+	KeyPath    string `long:"key" short:"k"`
+	Mode       string `long:"mode" short:"m"`
+	File       string `long:"file" short:"f"`
+	OutFile    string `long:"out" short:"o"`
+	Len        int    `long:"len" short:"l"`
+	Count      int    `long:"count" short:"c"`
+	BlocksPath string `long:"blocks" short:"b"`
 }
 
 const (
-	encrypt     = "e"
-	decrypt     = "d"
-	historgramm = "h"
-	generateKey = "g"
-	test        = "t"
+	encrypt         = "e"
+	decrypt         = "d"
+	historgramm     = "h"
+	generateKey     = "g"
+	test            = "t"
+	generateSblocks = "b"
 )
 
 const (
@@ -39,22 +42,26 @@ func main() {
 		header, data, err := reader.ReadBmp(opts.File)
 		if err != nil {
 			fmt.Println("file error!")
+			os.Exit(1)
 		}
 
 		s := sp_net.SPNet{}
-		sBlocks := make([][]byte, 6)
-		sBlocks[0], sBlocks[1], err = s.ReadBlock1("p1")
-		sBlocks[2], sBlocks[3], err = s.ReadBlock1("p2")
-		sBlocks[4], sBlocks[5], err = s.ReadBlock1("p3")
+		sBlocks, err := s.ReadBlock1(opts.BlocksPath)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
 		k, err := reader.ReadKey("key")
 		if err != nil {
 			fmt.Println("cant open key!")
+			os.Exit(1)
 		}
 
 		encryptedData, err := s.Encrypt(data, k, roundCount, sBlocks)
 		if err != nil {
 			fmt.Println("cant encrypt data")
+			os.Exit(1)
 		}
 
 		reader.WriteBmp(opts.OutFile, header, encryptedData)
@@ -66,10 +73,11 @@ func main() {
 		}
 
 		s := sp_net.SPNet{}
-		sBlocks := make([][]byte, 6)
-		sBlocks[0], sBlocks[1], err = s.ReadBlock1("p1")
-		sBlocks[2], sBlocks[3], err = s.ReadBlock1("p2")
-		sBlocks[4], sBlocks[5], err = s.ReadBlock1("p3")
+		sBlocks, err := s.ReadBlock1(opts.BlocksPath)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
 		k, err := reader.ReadKey("key")
 		if err != nil {
@@ -111,5 +119,8 @@ func main() {
 			fmt.Println(err)
 		}
 		sp_net.Test(data, opts.OutFile)
+	} else if opts.Mode == generateSblocks {
+		s := sp_net.SPNet{}
+		s.GenerateBlock(opts.OutFile, opts.Count)
 	}
 }
