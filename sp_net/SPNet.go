@@ -10,105 +10,109 @@ import (
 	"gonum.org/v1/plot/vg"
 	"image/color"
 	"gonum.org/v1/plot/vg/draw"
+	"reflect"
 )
 
-const blockSize = 32
+const BlockSize = 32
 const histbars = 256
 
 type SPNet struct {
-	rounds int
 }
 
-type Key struct {
-	Bytes [32]byte
-}
-
-func (f SPNet) Encrypt(bytes []byte, key Key, rounds int, s [][]byte) ([]byte, error) {
+func (f SPNet) Encrypt(bytes []byte, p [][]byte, rounds int, s [][][]byte) ([]byte, error) {
 	res := make([]byte, len(bytes))
 	count := len(bytes)
-	for i := 0; i < count; i += blockSize {
-		tmp := [blockSize]byte{}
-
-		if i+blockSize >= count {
+	for i := 0; i < count; i += BlockSize {
+		tmp := [BlockSize]byte{}
+		if i+BlockSize >= count {
 			l := count - i
 			zeros := make([]byte, l)
 			bytes = append(bytes, zeros...)
 			res = append(res, zeros...)
 		}
 
-		copy(tmp[:], bytes[i:i+blockSize])
-		result := f.encryptBlock(tmp, key, s, rounds)
-		copy(res[i:i+blockSize], result[:])
+		copy(tmp[:], bytes[i:i+BlockSize])
+		result := f.encryptBlock(tmp, p, s, rounds)
+		copy(res[i:i+BlockSize], result[:])
 	}
 	return res, nil
 }
 
-func (f SPNet) Decrypt(bytes []byte, key Key, rounds int, s [][]byte) ([]byte, error) {
+func (f SPNet) Decrypt(bytes []byte, p [][]byte, rounds int, s [][][]byte) ([]byte, error) {
 	res := make([]byte, len(bytes))
 	count := len(bytes)
-	for i := 0; i < count; i += blockSize {
-		tmp := [blockSize]byte{}
+	for i := 0; i < count; i += BlockSize {
+		tmp := [BlockSize]byte{}
 
-		if i+blockSize >= count {
+		if i+BlockSize >= count {
 			l := count - i
 			zeros := make([]byte, l)
 			bytes = append(bytes, zeros...)
 			res = append(res, zeros...)
 		}
-
-		copy(tmp[:], bytes[i:i+blockSize])
-		result := f.decryptBlock(tmp, key, s, rounds)
-		copy(res[i:i+blockSize], result[:])
+		copy(tmp[:], bytes[i:i+BlockSize])
+		result := f.decryptBlock(tmp, p, s, rounds)
+		copy(res[i:i+BlockSize], result[:])
 	}
 	return res, nil
 }
 
-func (f SPNet) decryptBlock(block [blockSize]byte, key Key, s [][]byte, rounds int) (res [blockSize]byte) {
-	res = [blockSize]byte{}
-
-	for i := range block {
-		res[i] = f.decryptByte(block[i], s, rounds)
-		res[i] = res[i] ^ key.Bytes[i]
-	}
-	return res
-}
-
-func (f SPNet) encryptBlock(block [blockSize]byte, key Key, s [][]byte, rounds int) (res [blockSize]byte) {
-	res = [blockSize]byte{}
-	for i := range block {
-		tmp := block[i] ^ key.Bytes[i]
-		res[i] = f.encryptByte(tmp, s, rounds)
-	}
-	return res
-}
-
-func (f SPNet) encryptByte(block byte, s [][]byte, rounds int) (byte) {
-	res := block
-	size := len(s)
-	for i := 0; i < rounds; i++ {
-		lvl := i % size
-		lvl2 := (i + 1) % size
-
-		idx := find(s[lvl], res)
-		res = s[lvl2][idx]
-	}
-	return res
-}
-
-func (f SPNet) decryptByte(block byte, s [][]byte, rounds int) (byte) {
-	res := block
-	size := len(s)
+func (f SPNet) decryptBlock(block [BlockSize]byte, p [][]byte, s [][][]byte, rounds int) (res [BlockSize]byte) {
+	res = block
 	for i := rounds - 1; i >= 0; i-- {
-		lvl := (i + 1) % size
-		lvl2 := (i) % size
-
-		idx := find(s[lvl], res)
-		res = s[lvl2][idx]
+		resAfterPermutation := [BlockSize]byte{}
+		key := InveseKey(p[i])
+		for j := range block {
+			resAfterPermutation[j] = res[key[j]]
+		}
+		res = resAfterPermutation
+		for c := range block {
+			res[c] = f.decryptByte(res[c], s[i][c], s[i+1][c])
+		}
 	}
+
+	return
+}
+
+func InveseKey(p []byte) ([]byte){
+	key:= make([]byte, len(p))
+	for i:= 0; i < len(p); i++ {
+		key[ p[i]] = byte(i)
+	}
+	return key
+}
+
+func (f SPNet) encryptBlock(block [BlockSize]byte, p [][]byte, s [][][]byte, rounds int) (res [BlockSize]byte) {
+	res = block
+	for i := 0; i < rounds; i++ {
+		for c := range block {
+			res[c] = f.encryptByte(block[c], s[i][c], s[i+1][c])
+		}
+		resAfterPermutation := [BlockSize]byte{}
+		for j := range block {
+			resAfterPermutation[j] = res[p[i][j]]
+		}
+
+		res = resAfterPermutation
+	}
+	return
+}
+
+func (f SPNet) encryptByte(block byte, s []byte, s2 []byte) (byte) {
+	res := block
+	idx := find(s, res)
+	res = s2[idx]
 	return res
 }
 
-func (f SPNet) GenerateBlock(path string, count int) {
+func (f SPNet) decryptByte(block byte, s []byte, s2 []byte) (byte) {
+	res := block
+	idx := find(s2, res)
+	res = s[idx]
+	return res
+}
+
+func (f SPNet) GenerateSBlock(path string, count int) {
 	file, _ := os.Create(path)
 	defer file.Close()
 
@@ -117,7 +121,7 @@ func (f SPNet) GenerateBlock(path string, count int) {
 	s := int(math.Pow(float64(2), float64(8)))
 	blocks := make([]uint8, s)
 	blocks2 := make([]uint8, s)
-	for c := 0; c < count; c++ {
+	for c := 0; c < count*BlockSize; c++ {
 		p := rand.Perm(s)
 		p2 := rand.Perm(s)
 		for i := 0; i < s; i++ {
@@ -132,19 +136,24 @@ func (f SPNet) GenerateBlock(path string, count int) {
 	}
 }
 
-func (f SPNet) ReadBlock1(path string) ([][]byte, error) {
+func (f SPNet) ReadSBlocks(path string) ([][][]byte, error) {
 	file, _ := os.Open(path)
 	defer file.Close()
 	stats, _ := file.Stat()
-	count := stats.Size() / 256
-	blocks := make([][]byte, count)
+	count := stats.Size() / BlockSize / 256
+	blocks := make([][][]byte, count)
+	for j := 0; j < int(count); j++ {
+		blocks[j] = make([][]byte, BlockSize)
+	}
 	for i := 0; i < int(count); i += 2 {
-		s1 := make([]byte, 256)
-		s2 := make([]byte, 256)
-		file.Read(s1)
-		file.Read(s2)
-		blocks[i] = s1
-		blocks[i+1] = s2
+		for j := 0; j < BlockSize; j++ {
+			s1 := make([]byte, 256)
+			s2 := make([]byte, 256)
+			file.Read(s1)
+			file.Read(s2)
+			blocks[i][j] = s1
+			blocks[i+1][j] = s2
+		}
 	}
 
 	return blocks, nil
@@ -159,8 +168,12 @@ func find(byte []byte, val byte) (int) {
 	return -1
 }
 
-func cycleShift(x byte, k uint8) (byte) {
+func rightCycleShift(x byte, k uint8) (byte) {
 	return (x >> k) | (x << (8 - k))
+}
+
+func leftCycleShift(x byte, k uint8) (byte) {
+	return (x << k) | (x >> (8 - k))
 }
 
 func avg(byte []byte) float64 {
@@ -192,6 +205,25 @@ func (f SPNet) Correlation(a, b []byte) float64 {
 		bottom += math.Sqrt(math.Pow(float64(a[i])-avgA, 2) * math.Pow(float64(b[i])-avgB, 2))
 	}
 	return top / bottom
+}
+
+func (f SPNet) GeneratePBlocks(count int, path string) (error) {
+	buffer := make([]byte, 0)
+	for c := 0; c < count; c++ {
+		list := rand.Perm(BlockSize)
+		tmp := make([]byte, BlockSize)
+		for i := range list {
+			tmp[i] = byte(list[i])
+		}
+		buffer = append(buffer, tmp...)
+	}
+	file, err := os.Create(path)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+	file.Write(buffer)
+	return nil
 }
 func Test(bytes []byte, path string) {
 	x := bytes[1:]
@@ -291,5 +323,15 @@ func MakeHist(path string, bytes []byte) {
 	// Save the plot to a PNG file.
 	if err := p.Save(20*vg.Inch, 20*vg.Inch, path); err != nil {
 		panic(err)
+	}
+}
+
+func Shuffle(slice interface{}) {
+	rv := reflect.ValueOf(slice)
+	swap := reflect.Swapper(slice)
+	length := rv.Len()
+	for i := length - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		swap(i, j)
 	}
 }
