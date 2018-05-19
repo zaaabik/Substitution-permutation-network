@@ -208,6 +208,7 @@ func (f SPNet) Correlation(a, b []byte) float64 {
 }
 
 func (f SPNet) GeneratePBlocks(count int, path string) (error) {
+	rand.Seed(time.Now().UnixNano())
 	buffer := make([]byte, 0)
 	for c := 0; c < count; c++ {
 		list := rand.Perm(BlockSize)
