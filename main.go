@@ -103,7 +103,7 @@ func main() {
 		sp_net.MakeHist(opts.OutFile, data)
 	} else if opts.Mode == generatePBlocks {
 		s := sp_net.SPNet{}
-		s.GeneratePBlocks(opts.Count, opts.OutFile)
+		s.GeneratePBlocks(roundCount, opts.OutFile)
 	} else if opts.Mode == test {
 		reader := b.Reader{}
 		_, data, err := reader.ReadBmp(opts.File)
@@ -115,7 +115,7 @@ func main() {
 		sp_net.Test(data, opts.OutFile)
 	} else if opts.Mode == generateSBlocks {
 		s := sp_net.SPNet{}
-		s.GenerateSBlock(opts.OutFile, opts.Count)
+		s.GenerateSBlock(opts.OutFile, roundCount)
 	} else if opts.Mode == correlation {
 		s := sp_net.SPNet{}
 		r := b.Reader{}
